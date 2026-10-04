@@ -1,4 +1,4 @@
-name: Aksaray Sesi HLS
+name: Aksaray Sesi Video HLS
 
 on:
   workflow_dispatch:
@@ -19,20 +19,25 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
-      - name: HLS oluştur
+      - name: Dosyaları kontrol et
+        run: |
+          ls -lah
+          file video.mp4
+          ffprobe -hide_banner video.mp4
+
+      - name: Video + Radyo HLS oluştur
         run: |
           rm -rf docs
           mkdir -p docs
 
           timeout 90 ffmpeg \
-            -loop 1 \
-            -i image.jpg \
+            -stream_loop -1 \
+            -i video.mp4 \
             -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
             -map 0:v:0 \
             -map 1:a:0 \
             -c:v libx264 \
             -preset veryfast \
-            -tune stillimage \
             -pix_fmt yuv420p \
             -r 25 \
             -s 1280x720 \
@@ -46,11 +51,11 @@ jobs:
             -t 60 \
             docs/playlist.m3u8
 
-      - name: GitHub Pages dosyalarını kaydet
+      - name: GitHub Pages'e kaydet
         run: |
           touch docs/.nojekyll
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add docs
-          git commit -m "HLS yayın güncelleme" || true
+          git commit -m "Video radyo HLS güncelleme" || true
           git push
