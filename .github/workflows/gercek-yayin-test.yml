@@ -9,37 +9,19 @@ jobs:
 
     steps:
 
-      # ==========================================
-      # 1 - FFMPEG
-      # ==========================================
-
-      - name: FFmpeg kontrolu
+      - name: FFmpeg kontrol
         run: |
           echo "======================================"
           echo "FFMPEG KONTROL"
           echo "======================================"
 
-          if command -v ffmpeg >/dev/null 2>&1; then
-            echo "FFmpeg zaten kurulu."
-          else
-            echo "FFmpeg bulunamadi."
-
-            echo "FFmpeg kuruluyor..."
-
-            timeout 180 sudo apt-get update -y
-            timeout 180 sudo apt-get install -y ffmpeg
-          fi
-
-          echo ""
-          echo "FFmpeg versiyonu:"
+          command -v ffmpeg
           ffmpeg -version | head -n 1
 
+          echo "FFmpeg HAZIR"
 
-      # ==========================================
-      # 2 - DNS
-      # ==========================================
 
-      - name: SSH101 DNS testi
+      - name: SSH101 DNS
         run: |
           echo "======================================"
           echo "SSH101 DNS"
@@ -50,14 +32,10 @@ jobs:
           echo "DNS OK"
 
 
-      # ==========================================
-      # 3 - SSH101 PORT
-      # ==========================================
-
-      - name: SSH101 port testi
+      - name: SSH101 TCP 1935
         run: |
           echo "======================================"
-          echo "SSH101 TCP 1935"
+          echo "SSH101 TCP TEST"
           echo "======================================"
 
           timeout 10 bash -c \
@@ -66,31 +44,22 @@ jobs:
           echo "TCP 1935 OK"
 
 
-      # ==========================================
-      # 4 - KAMERA TEST
-      # ==========================================
-
       - name: Kamera test
         run: |
           echo "======================================"
-          echo "BUYUK CAMLICA KAMERA TEST"
+          echo "KAMERA TEST"
           echo "======================================"
 
           timeout 30 ffmpeg \
             -hide_banner \
-            -loglevel info \
+            -loglevel error \
             -i "https://kamerayayin.ibb.istanbul/turistikcam/buyukcamlica.stream/chunklist_w607999958.m3u8" \
-            -t 10 \
+            -t 5 \
             -map 0:v:0 \
             -f null -
 
-          echo ""
           echo "KAMERA OK"
 
-
-      # ==========================================
-      # 5 - AKSARAY SESI TEST
-      # ==========================================
 
       - name: Aksaray Sesi test
         run: |
@@ -100,7 +69,68 @@ jobs:
 
           timeout 30 ffmpeg \
             -hide_banner \
+            -loglevel error \
+            -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
+            -t 5 \
+            -map 0:a:0 \
+            -f null -
+
+          echo "AKSARAY SESI OK"
+
+
+      - name: Gercek yayin
+        env:
+          SSH101_KEY: ${{ secrets.SSH101_KEY }}
+
+        run: |
+
+          echo "======================================"
+          echo "GERCEK YAYIN BASLIYOR"
+          echo "======================================"
+
+          timeout 300 ffmpeg \
+            -hide_banner \
             -loglevel info \
-            -analyzeduration 10M \
-            -probesize 20M \
-            -i "https://sslyayin.netyayin.net/aksarayins
+            -analyzeduration 30M \
+            -probesize 50M \
+            -fflags +genpts+discardcorrupt \
+            \
+            -thread_queue_size 4096 \
+            -reconnect 1 \
+            -reconnect_streamed 1 \
+            -reconnect_at_eof 1 \
+            -reconnect_delay_max 5 \
+            -i "https://kamerayayin.ibb.istanbul/turistikcam/buyukcamlica.stream/chunklist_w607999958.m3u8" \
+            \
+            -thread_queue_size 4096 \
+            -reconnect 1 \
+            -reconnect_streamed 1 \
+            -reconnect_at_eof 1 \
+            -reconnect_delay_max 5 \
+            -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
+            \
+            -map 0:v:0 \
+            -map 1:a:0 \
+            \
+            -c:v libx264 \
+            -preset ultrafast \
+            -tune zerolatency \
+            -pix_fmt yuv420p \
+            -s 1280x720 \
+            -r 20 \
+            -g 40 \
+            -keyint_min 40 \
+            -sc_threshold 0 \
+            -b:v 1000k \
+            -maxrate 1200k \
+            -bufsize 2400k \
+            \
+            -c:a aac \
+            -b:a 128k \
+            -ar 44100 \
+            -ac 2 \
+            \
+            -flvflags no_duration_filesize \
+            -f flv \
+            -rtmp_live live \
+            "rtmp://ssh101.bozztv.com/ssh101/${SSH101_KEY}"
