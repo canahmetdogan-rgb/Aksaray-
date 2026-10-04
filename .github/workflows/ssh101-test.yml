@@ -1,0 +1,64 @@
+name: SSH101 RTMP Baglanti Testi
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: FFmpeg kurulumu
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg
+
+      - name: SSH101 port testi
+        run: |
+          echo "======================================"
+          echo "SSH101 PORT TESTI"
+          echo "======================================"
+
+          timeout 10 bash -c \
+          'cat < /dev/null > /dev/tcp/ssh101.bozztv.com/1935'
+
+          echo "1935 PORTU ACIK"
+          echo "TCP BAGLANTI BASARILI"
+
+      - name: SSH101 RTMP yayin testi
+        env:
+          SSH101_KEY: ${{ secrets.SSH101_KEY }}
+
+        run: |
+          echo "======================================"
+          echo "SSH101 RTMP TESTI BASLIYOR"
+          echo "======================================"
+
+          ffmpeg \
+            -hide_banner \
+            -loglevel debug \
+            -re \
+            -f lavfi \
+            -i "testsrc=size=1280x720:rate=20" \
+            -re \
+            -f lavfi \
+            -i "sine=frequency=1000:sample_rate=44100" \
+            -map 0:v:0 \
+            -map 1:a:0 \
+            -c:v libx264 \
+            -preset ultrafast \
+            -tune zerolatency \
+            -pix_fmt yuv420p \
+            -r 20 \
+            -g 40 \
+            -keyint_min 40 \
+            -b:v 1000k \
+            -maxrate 1200k \
+            -bufsize 2400k \
+            -c:a aac \
+            -b:a 128k \
+            -ar 44100 \
+            -ac 2 \
+            -f flv \
+            -rtmp_live live \
+            "rtmp://ssh101.bozztv.com/ssh101/${SSH101_KEY}"
