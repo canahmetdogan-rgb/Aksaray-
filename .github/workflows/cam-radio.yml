@@ -1,0 +1,62 @@
+name: Büyük Çamlıca + Aksaray Sesi
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  hls:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Depoyu indir
+        uses: actions/checkout@v4
+
+      - name: FFmpeg kur
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: HLS oluştur
+        run: |
+          rm -rf docs
+          mkdir -p docs
+
+          timeout 420 ffmpeg \
+            -reconnect 1 \
+            -reconnect_streamed 1 \
+            -reconnect_delay_max 10 \
+            -i "https://kamerayayin.ibb.istanbul/turistikcam/buyukcamlica.stream/chunklist_w607999958.m3u8" \
+            -reconnect 1 \
+            -reconnect_streamed 1 \
+            -reconnect_delay_max 10 \
+            -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
+            -map 0:v:0 \
+            -map 1:a:0 \
+            -c:v libx264 \
+            -preset veryfast \
+            -pix_fmt yuv420p \
+            -r 25 \
+            -s 1280x720 \
+            -c:a aac \
+            -b:a 128k \
+            -ar 44100 \
+            -f hls \
+            -hls_time 6 \
+            -hls_list_size 10 \
+            -hls_flags delete_segments+append_list \
+            -t 300 \
+            docs/playlist.m3u8
+
+      - name: GitHub Pages'e kaydet
+        run: |
+          touch docs/.nojekyll
+
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add docs
+          git commit -m "Cam ve Aksaray Sesi HLS" || true
+          git push
