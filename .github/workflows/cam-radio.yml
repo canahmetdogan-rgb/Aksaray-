@@ -1,4 +1,25 @@
-      - name: HLS oluştur
+name: Cam + Aksaray Sesi Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  hls:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Depoyu indir
+        uses: actions/checkout@v4
+
+      - name: FFmpeg kur
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: 10 dakikalık HLS oluştur
         run: |
           rm -rf docs
           mkdir -p docs
@@ -14,11 +35,7 @@
             -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
             -map 0:v:0 \
             -map 1:a:0 \
-            -c:v libx264 \
-            -preset veryfast \
-            -pix_fmt yuv420p \
-            -r 25 \
-            -s 1280x720 \
+            -c:v copy \
             -c:a aac \
             -b:a 128k \
             -ar 44100 \
@@ -28,3 +45,12 @@
             -hls_flags delete_segments \
             -t 600 \
             docs/playlist.m3u8
+
+      - name: Dosyaları GitHub'a kaydet
+        run: |
+          touch docs/.nojekyll
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add docs
+          git commit -m "Cam ve Aksaray Sesi HLS testi" || true
+          git push
