@@ -1,21 +1,62 @@
-name: Dosya Kontrol
+name: Aksaray Sesi HLS Test
 
 on:
   workflow_dispatch:
 
 jobs:
-  test:
+  hls-test:
     runs-on: ubuntu-24.04
 
     steps:
-      - name: Repository indir
+      - name: Depoyu indir
         uses: actions/checkout@v4
 
-      - name: Tum dosyalari listele
+      - name: FFmpeg kur
         run: |
-          echo "=== REPOSITORY ==="
-          pwd
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Resmi kontrol et
+        run: |
           echo "=== DOSYALAR ==="
-          find . -maxdepth 3 -type f -print
-          echo "=== IMAGE DOSYALARI ==="
-          find . -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png"
+          ls -lah
+          echo "=== RESİM ==="
+          file image.jpg
+          ffmpeg -hide_banner -i image.jpg -f null -
+
+      - name: Radyo + resim HLS oluştur
+        run: |
+          mkdir -p hls
+
+          timeout 90 ffmpeg \
+            -loop 1 \
+            -i image.jpg \
+            -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
+            -map 0:v:0 \
+            -map 1:a:0 \
+            -c:v libx264 \
+            -preset veryfast \
+            -tune stillimage \
+            -pix_fmt yuv420p \
+            -r 25 \
+            -s 1280x720 \
+            -c:a aac \
+            -b:a 128k \
+            -ar 44100 \
+            -f hls \
+            -hls_time 6 \
+            -hls_list_size 10 \
+            -hls_flags delete_segments \
+            -t 60 \
+            hls/playlist.m3u8
+
+      - name: HLS dosyalarını göster
+        run: |
+          echo "=== HLS DOSYALARI ==="
+          ls -lah hls
+
+      - name: HLS dosyalarını yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: aksaray-sesi-hls-test
+          path: hls/
