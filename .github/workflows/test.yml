@@ -1,4 +1,4 @@
-name: Aksarayin Sesi Test
+name: Aksaray Sesi Test
 
 on:
   workflow_dispatch:
@@ -8,12 +8,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Repository indir
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: FFmpeg kontrol
-        run: |
-          ffmpeg -version
+        run: ffmpeg -version
 
       - name: Dosyaları kontrol et
         run: |
