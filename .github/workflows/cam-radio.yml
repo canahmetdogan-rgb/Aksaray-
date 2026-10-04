@@ -13,20 +13,40 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
-      - name: Kamera + radyo SSH101
+      - name: Aksaray Sesi kontrol
+        run: |
+          echo "=== AKSARAY SESI TESTI ==="
+
+          ffmpeg \
+            -hide_banner \
+            -loglevel info \
+            -analyzeduration 10M \
+            -probesize 20M \
+            -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
+            -t 10 \
+            -map 0:a:0 \
+            -c:a aac \
+            -b:a 128k \
+            -f null -
+
+          echo "=== AKSARAY SESI TESTI TAMAMLANDI ==="
+
+      - name: Kamera + Aksaray Sesi -> SSH101
         env:
           SSH101_KEY: ${{ secrets.SSH101_KEY }}
         run: |
           ffmpeg \
             -hide_banner \
-            -loglevel verbose \
+            -loglevel info \
             -analyzeduration 30M \
             -probesize 50M \
             -fflags +genpts \
+            -thread_queue_size 4096 \
             -reconnect 1 \
             -reconnect_streamed 1 \
             -reconnect_delay_max 5 \
             -i "https://kamerayayin.ibb.istanbul/turistikcam/buyukcamlica.stream/chunklist_w607999958.m3u8" \
+            -thread_queue_size 4096 \
             -reconnect 1 \
             -reconnect_streamed 1 \
             -reconnect_delay_max 5 \
@@ -37,8 +57,8 @@ jobs:
             -preset ultrafast \
             -tune zerolatency \
             -pix_fmt yuv420p \
-            -r 25 \
             -s 1280x720 \
+            -r 25 \
             -g 50 \
             -keyint_min 50 \
             -sc_threshold 0 \
@@ -48,5 +68,6 @@ jobs:
             -c:a aac \
             -b:a 128k \
             -ar 44100 \
+            -ac 2 \
             -f flv \
             "rtmp://ssh101.bozztv.com/ssh101/${SSH101_KEY}"
