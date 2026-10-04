@@ -1,4 +1,4 @@
-name: Resim Test
+name: Dosya Kontrol
 
 on:
   workflow_dispatch:
@@ -11,20 +11,11 @@ jobs:
       - name: Repository indir
         uses: actions/checkout@v4
 
-      - name: Dosyaları kontrol et
+      - name: Tum dosyalari listele
         run: |
+          echo "=== REPOSITORY ==="
+          pwd
           echo "=== DOSYALAR ==="
-          ls -lah
-          echo "=== IMAGE DOSYASI ==="
-          ls -l image.jpg || true
-          echo "=== DOSYA TÜRÜ ==="
-          file image.jpg || true
-
-      - name: FFmpeg kur
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
-
-      - name: Resmi kontrol et
-        run: |
-          ffmpeg -hide_banner -i "./image.jpg" -f null -
+          find . -maxdepth 3 -type f -print
+          echo "=== IMAGE DOSYALARI ==="
+          find . -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png"
