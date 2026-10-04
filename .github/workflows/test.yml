@@ -1,10 +1,13 @@
-name: Aksaray Sesi HLS Test
+name: Aksaray Sesi HLS
 
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  hls-test:
+  hls:
     runs-on: ubuntu-24.04
 
     steps:
@@ -16,17 +19,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
-      - name: Resmi kontrol et
+      - name: HLS oluştur
         run: |
-          echo "=== DOSYALAR ==="
-          ls -lah
-          echo "=== RESİM ==="
-          file image.jpg
-          ffmpeg -hide_banner -i image.jpg -f null -
-
-      - name: Radyo + resim HLS oluştur
-        run: |
-          mkdir -p hls
+          rm -rf docs
+          mkdir -p docs
 
           timeout 90 ffmpeg \
             -loop 1 \
@@ -48,15 +44,13 @@ jobs:
             -hls_list_size 10 \
             -hls_flags delete_segments \
             -t 60 \
-            hls/playlist.m3u8
+            docs/playlist.m3u8
 
-      - name: HLS dosyalarını göster
+      - name: GitHub Pages dosyalarını kaydet
         run: |
-          echo "=== HLS DOSYALARI ==="
-          ls -lah hls
-
-      - name: HLS dosyalarını yükle
-        uses: actions/upload-artifact@v4
-        with:
-          name: aksaray-sesi-hls-test
-          path: hls/
+          touch docs/.nojekyll
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add docs
+          git commit -m "HLS yayın güncelleme" || true
+          git push
