@@ -24,7 +24,7 @@ jobs:
           rm -rf docs
           mkdir -p docs
 
-          timeout 420 ffmpeg \
+          ffmpeg \
             -reconnect 1 \
             -reconnect_streamed 1 \
             -reconnect_delay_max 10 \
@@ -47,16 +47,4 @@ jobs:
             -hls_time 6 \
             -hls_list_size 10 \
             -hls_flags delete_segments+append_list \
-            -t 300 \
             docs/playlist.m3u8
-
-      - name: GitHub Pages'e kaydet
-        run: |
-          touch docs/.nojekyll
-
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-
-          git add docs
-          git commit -m "Cam ve Aksaray Sesi HLS" || true
-          git push
