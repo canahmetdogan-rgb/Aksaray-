@@ -1,57 +1,13 @@
-name: Aksaray Sesi - SSH101 Canli
-
-on:
-  workflow_dispatch:
-
-jobs:
-  stream:
-    runs-on: ubuntu-24.04
-
-    steps:
-
-      - name: FFmpeg kurulumu
-        run: |
-          echo "FFmpeg kuruluyor..."
-          sudo apt-get update -y
-          sudo apt-get install -y ffmpeg
-          ffmpeg -version | head -n 1
-
-      - name: SSH101 RTMP port testi
-        run: |
-          echo "=== SSH101 RTMP PORT TESTI ==="
-
-          timeout 10 bash -c \
-            'cat < /dev/null > /dev/tcp/ssh101.bozztv.com/1935'
-
-          echo "RTMP 1935 PORT ACIK"
-
-      - name: Aksaray Sesi test
-        run: |
-          echo "=== AKSARAY SESI TESTI ==="
-
-          timeout 20 ffmpeg \
-            -hide_banner \
-            -loglevel info \
-            -analyzeduration 10M \
-            -probesize 20M \
-            -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
-            -t 10 \
-            -map 0:a:0 \
-            -c:a aac \
-            -b:a 128k \
-            -f null -
-
-          echo "=== AKSARAY SESI TESTI BITTI ==="
-
       - name: Kamera + Aksaray Sesi -> SSH101
         env:
           SSH101_KEY: ${{ secrets.SSH101_KEY }}
         run: |
           echo "=== CANLI YAYIN BASLIYOR ==="
+          echo "SSH101 RTMP bağlantısı hazırlanıyor..."
 
           ffmpeg \
             -hide_banner \
-            -loglevel info \
+            -loglevel verbose \
             -analyzeduration 30M \
             -probesize 50M \
             -fflags +genpts \
@@ -81,9 +37,9 @@ jobs:
             -keyint_min 50 \
             -sc_threshold 0 \
             \
-            -b:v 1200k \
-            -maxrate 1500k \
-            -bufsize 3000k \
+            -b:v 1000k \
+            -maxrate 1200k \
+            -bufsize 2400k \
             \
             -c:a aac \
             -b:a 128k \
@@ -91,4 +47,5 @@ jobs:
             -ac 2 \
             \
             -f flv \
-            "rtmp://ssh101.bozztv.com:1935/ssh101/${SSH101_KEY}"
+            -rtmp_live live \
+            "rtmp://ssh101.bozztv.com/ssh101/${SSH101_KEY}"
