@@ -8,9 +8,13 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - name: FFmpeg kontrol
+
+      - name: FFmpeg kurulumu
         run: |
-          echo "FFmpeg kontrol ediliyor..."
+          echo "FFmpeg kuruluyor..."
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg
+          echo "FFmpeg kontrol:"
           ffmpeg -version | head -n 1
 
       - name: Aksaray Sesi test
@@ -29,9 +33,9 @@ jobs:
             -b:a 128k \
             -f null -
 
-          echo "=== TEST BITTI ==="
+          echo "=== AKSARAY SESI TESTI BITTI ==="
 
-      - name: Kamera + Radyo -> SSH101
+      - name: Kamera + Aksaray Sesi -> SSH101
         env:
           SSH101_KEY: ${{ secrets.SSH101_KEY }}
         run: |
