@@ -8,11 +8,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Repository indir
         uses: actions/checkout@v4
 
+      - name: FFmpeg kur
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
       - name: FFmpeg kontrol
-        run: ffmpeg -version
+        run: |
+          ffmpeg -version
 
       - name: Dosyaları kontrol et
         run: |
