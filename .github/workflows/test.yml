@@ -5,22 +5,26 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Repository indir
         uses: actions/checkout@v4
 
-      - name: Dosyaları göster
+      - name: Dosyaları kontrol et
         run: |
+          echo "=== DOSYALAR ==="
           ls -lah
-          file image.jpg
+          echo "=== IMAGE DOSYASI ==="
+          ls -l image.jpg || true
+          echo "=== DOSYA TÜRÜ ==="
+          file image.jpg || true
 
       - name: FFmpeg kur
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
-      - name: Resmi FFmpeg ile kontrol et
+      - name: Resmi kontrol et
         run: |
-          ffmpeg -hide_banner -i image.jpg -f null -
+          ffmpeg -hide_banner -i "./image.jpg" -f null -
