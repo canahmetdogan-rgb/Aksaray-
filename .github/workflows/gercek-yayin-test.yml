@@ -9,46 +9,53 @@ jobs:
 
     steps:
 
-      - name: FFmpeg kontrol
+      - name: FFmpeg kurulumu
+        shell: bash
         run: |
+          set -e
+
+          echo "FFmpeg kuruluyor..."
+
+          export DEBIAN_FRONTEND=noninteractive
+
+          sudo apt-get -o Acquire::Retries=2 \
+                       -o Acquire::http::Timeout=20 \
+                       -o Acquire::https::Timeout=20 \
+                       update -y
+
+          sudo apt-get -o Acquire::Retries=2 \
+                       -o Acquire::http::Timeout=20 \
+                       -o Acquire::https::Timeout=20 \
+                       install -y ffmpeg
+
           echo "======================================"
-          echo "FFMPEG KONTROL"
+          echo "FFmpeg HAZIR"
           echo "======================================"
 
-          command -v ffmpeg
           ffmpeg -version | head -n 1
 
-          echo "FFmpeg HAZIR"
 
-
-      - name: SSH101 DNS
+      - name: SSH101 DNS ve port
         run: |
           echo "======================================"
-          echo "SSH101 DNS"
+          echo "SSH101 TEST"
           echo "======================================"
 
           getent hosts ssh101.bozztv.com
 
-          echo "DNS OK"
-
-
-      - name: SSH101 TCP 1935
-        run: |
-          echo "======================================"
-          echo "SSH101 TCP TEST"
-          echo "======================================"
-
           timeout 10 bash -c \
           'cat < /dev/null > /dev/tcp/ssh101.bozztv.com/1935'
 
-          echo "TCP 1935 OK"
+          echo "SSH101 TCP 1935 OK"
 
 
-      - name: Kamera test
+      - name: Kamera ve Aksaray Sesi
         run: |
           echo "======================================"
-          echo "KAMERA TEST"
+          echo "KAYNAK TESTLERI"
           echo "======================================"
+
+          echo "Kamera test..."
 
           timeout 30 ffmpeg \
             -hide_banner \
@@ -60,12 +67,7 @@ jobs:
 
           echo "KAMERA OK"
 
-
-      - name: Aksaray Sesi test
-        run: |
-          echo "======================================"
-          echo "AKSARAY SESI TEST"
-          echo "======================================"
+          echo "Aksaray Sesi test..."
 
           timeout 30 ffmpeg \
             -hide_banner \
@@ -78,14 +80,14 @@ jobs:
           echo "AKSARAY SESI OK"
 
 
-      - name: Gercek yayin
+      - name: Gercek SSH101 yayini
         env:
           SSH101_KEY: ${{ secrets.SSH101_KEY }}
 
         run: |
 
           echo "======================================"
-          echo "GERCEK YAYIN BASLIYOR"
+          echo "AKSARAY SESI GERCEK YAYIN"
           echo "======================================"
 
           timeout 300 ffmpeg \
