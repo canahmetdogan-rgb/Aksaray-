@@ -1,0 +1,22 @@
+name: Aksarayin Sesi Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repository indir
+        uses: actions/checkout@v4
+
+      - name: FFmpeg kontrol
+        run: |
+          ffmpeg -version
+
+      - name: Dosyaları kontrol et
+        run: |
+          ls -lah
+          file image.jpg
+          cat start.sh
