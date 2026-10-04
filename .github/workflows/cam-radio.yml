@@ -8,16 +8,16 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - name: FFmpeg kurulumu
+      - name: FFmpeg kontrol
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          echo "FFmpeg kontrol ediliyor..."
+          ffmpeg -version | head -n 1
 
-      - name: Aksaray Sesi kontrol
+      - name: Aksaray Sesi test
         run: |
           echo "=== AKSARAY SESI TESTI ==="
 
-          ffmpeg \
+          timeout 20 ffmpeg \
             -hide_banner \
             -loglevel info \
             -analyzeduration 10M \
@@ -29,9 +29,9 @@ jobs:
             -b:a 128k \
             -f null -
 
-          echo "=== AKSARAY SESI TESTI TAMAMLANDI ==="
+          echo "=== TEST BITTI ==="
 
-      - name: Kamera + Aksaray Sesi -> SSH101
+      - name: Kamera + Radyo -> SSH101
         env:
           SSH101_KEY: ${{ secrets.SSH101_KEY }}
         run: |
