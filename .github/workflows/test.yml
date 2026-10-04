@@ -1,4 +1,4 @@
-name: Aksaray Sesi Test
+name: Aksaray Sesi Radio Test
 
 on:
   workflow_dispatch:
@@ -8,20 +8,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Repository indir
-        uses: actions/checkout@v4
-
       - name: FFmpeg kur
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
-      - name: FFmpeg kontrol
+      - name: Radyo bağlantısını test et
         run: |
-          ffmpeg -version
-
-      - name: Dosyaları kontrol et
-        run: |
-          ls -lah
-          file image.jpg
-          cat start.sh
+          timeout 30 ffmpeg \
+          -reconnect 1 \
+          -reconnect_streamed 1 \
+          -reconnect_delay_max 10 \
+          -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
+          -t 20 \
+          -vn \
+          -f null -
