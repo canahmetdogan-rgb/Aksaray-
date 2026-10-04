@@ -1,4 +1,4 @@
-name: SSH101 RTMP Baglanti Testi
+name: SSH101 Saf RTMP Test
 
 on:
   workflow_dispatch:
@@ -8,57 +8,40 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - name: FFmpeg kurulumu
+      - name: DNS testi
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y ffmpeg
+          echo "=== DNS ==="
+          getent hosts ssh101.bozztv.com
 
-      - name: SSH101 port testi
+      - name: Port 1935 testi
         run: |
-          echo "======================================"
-          echo "SSH101 PORT TESTI"
-          echo "======================================"
+          echo "=== TCP 1935 ==="
 
           timeout 10 bash -c \
           'cat < /dev/null > /dev/tcp/ssh101.bozztv.com/1935'
 
-          echo "1935 PORTU ACIK"
-          echo "TCP BAGLANTI BASARILI"
+          echo "TCP 1935 BASARILI"
 
-      - name: SSH101 RTMP yayin testi
-        env:
-          SSH101_KEY: ${{ secrets.SSH101_KEY }}
-
+      - name: RTMP handshake testi
         run: |
-          echo "======================================"
-          echo "SSH101 RTMP TESTI BASLIYOR"
-          echo "======================================"
+          echo "=== RTMP SERVER TEST ==="
 
-          ffmpeg \
+          timeout 15 ffmpeg \
             -hide_banner \
             -loglevel debug \
-            -re \
             -f lavfi \
-            -i "testsrc=size=1280x720:rate=20" \
-            -re \
-            -f lavfi \
-            -i "sine=frequency=1000:sample_rate=44100" \
-            -map 0:v:0 \
-            -map 1:a:0 \
+            -i "testsrc=size=320x240:rate=5" \
+            -t 5 \
             -c:v libx264 \
             -preset ultrafast \
-            -tune zerolatency \
-            -pix_fmt yuv420p \
-            -r 20 \
-            -g 40 \
-            -keyint_min 40 \
-            -b:v 1000k \
-            -maxrate 1200k \
-            -bufsize 2400k \
-            -c:a aac \
-            -b:a 128k \
-            -ar 44100 \
-            -ac 2 \
             -f flv \
             -rtmp_live live \
-            "rtmp://ssh101.bozztv.com/ssh101/${SSH101_KEY}"
+            "rtmp://ssh101.bozztv.com/ssh101/${{ secrets.SSH101_KEY }}" \
+            2>&1 | tee rtmp.log
+
+          echo ""
+          echo "=== RTMP SONUCU ==="
+
+          grep -Ei \
+          "connect|handshake|publish|NetStream|server|error|failed|refused|closed|broken|reset" \
+          rtmp.log || true
