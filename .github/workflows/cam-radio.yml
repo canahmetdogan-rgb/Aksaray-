@@ -12,7 +12,7 @@ jobs:
       - name: FFmpeg kurulumu
         run: |
           echo "======================================"
-          echo "FFMPEG KURULUYOR"
+          echo "FFMPEG KURULUMU"
           echo "======================================"
 
           sudo apt-get update -y
@@ -21,16 +21,31 @@ jobs:
           ffmpeg -version | head -n 1
 
 
-      - name: SSH101 RTMP port testi
+      - name: SSH101 TCP port testi
         run: |
           echo "======================================"
           echo "SSH101 RTMP PORT TESTI"
           echo "======================================"
 
-          timeout 10 bash -c \
+          if timeout 10 bash -c \
           'cat < /dev/null > /dev/tcp/ssh101.bozztv.com/1935'
+          then
+            echo "RTMP 1935 PORT ACIK"
+          else
+            echo "RTMP 1935 PORT KAPALI"
+            exit 1
+          fi
 
-          echo "RTMP 1935 PORT ACIK"
+
+      - name: SSH101 DNS testi
+        run: |
+          echo "======================================"
+          echo "SSH101 DNS TESTI"
+          echo "======================================"
+
+          getent hosts ssh101.bozztv.com
+
+          echo "DNS TESTI TAMAMLANDI"
 
 
       - name: Aksaray Sesi test
@@ -53,9 +68,7 @@ jobs:
             -ac 2 \
             -f null -
 
-          echo "======================================"
           echo "AKSARAY SESI TESTI TAMAMLANDI"
-          echo "======================================"
 
 
       - name: Kamera test
@@ -75,12 +88,83 @@ jobs:
             -c:v copy \
             -f null -
 
-          echo "======================================"
           echo "KAMERA TESTI TAMAMLANDI"
+
+
+      - name: RTMP SSH101 baglanti testi
+        env:
+          SSH101_KEY: ${{ secrets.SSH101_KEY }}
+
+        run: |
           echo "======================================"
+          echo "SSH101 RTMP BAGLANTI TESTI"
+          echo "======================================"
+
+          echo "Sunucu:"
+          echo "ssh101.bozztv.com"
+
+          echo "Port:"
+          echo "1935"
+
+          echo "RTMP uygulama:"
+          echo "ssh101"
+
+          echo "Yayin anahtari Secret olarak kullaniliyor."
+
+          echo "======================================"
+          echo "RTMP TESTI BASLIYOR"
+          echo "======================================"
+
+          timeout 30 ffmpeg \
+            -hide_banner \
+            -loglevel debug \
+            -re \
+            -f lavfi \
+            -i "testsrc=size=640x360:rate=20" \
+            -f lavfi \
+            -i "sine=frequency=1000:sample_rate=44100" \
+            -t 20 \
+            -map 0:v:0 \
+            -map 1:a:0 \
+            -c:v libx264 \
+            -preset ultrafast \
+            -tune zerolatency \
+            -pix_fmt yuv420p \
+            -r 20 \
+            -g 40 \
+            -keyint_min 40 \
+            -b:v 500k \
+            -maxrate 600k \
+            -bufsize 1200k \
+            -c:a aac \
+            -b:a 96k \
+            -ar 44100 \
+            -ac 2 \
+            -f flv \
+            -rtmp_live live \
+            "rtmp://ssh101.bozztv.com/ssh101/${SSH101_KEY}" \
+            2>&1 | tee rtmp-test.log
+
+          TEST_RESULT=${PIPESTATUS[0]}
+
+          echo "======================================"
+          echo "RTMP TEST SONUCU"
+          echo "======================================"
+
+          if [ "$TEST_RESULT" -eq 0 ]; then
+            echo "FFMPEG RTMP TESTI BASARILI"
+          else
+            echo "FFMPEG RTMP TESTI HATA VERDI"
+            echo "SSH101 RTMP CEVABI YUKARIDAKI LOGDA."
+          fi
+
+          echo "======================================"
+
+          exit "$TEST_RESULT"
 
 
       - name: Kamera + Aksaray Sesi -> SSH101
+        if: success()
         env:
           SSH101_KEY: ${{ secrets.SSH101_KEY }}
 
@@ -91,17 +175,17 @@ jobs:
           echo "SSH101 CANLI YAYIN BASLIYOR"
           echo "======================================"
 
-          echo "Video: BUYUK CAMLICA"
-          echo "Audio: AKSARAY SESI"
-          echo "Video: 1280x720 / 20 FPS"
-          echo "Audio: AAC 128K"
-          echo "RTMP: SSH101"
+          echo "Video : BUYUK CAMLICA"
+          echo "Audio : AKSARAY SESI"
+          echo "Video : 1280x720 / 20 FPS"
+          echo "Audio : AAC 128K"
+          echo "RTMP  : SSH101"
           echo "======================================"
 
 
           ffmpeg \
             -hide_banner \
-            -loglevel verbose \
+            -loglevel debug \
             -analyzeduration 30M \
             -probesize 50M \
             -fflags +genpts+discardcorrupt \
