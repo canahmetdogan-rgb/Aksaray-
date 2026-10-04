@@ -1,25 +1,53 @@
-name: Aksaray Sesi Radio Test
+name: Aksaray Sesi HLS Test
 
 on:
   workflow_dispatch:
 
 jobs:
-  test:
+  hls:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Repository indir
+        uses: actions/checkout@v4
+
       - name: FFmpeg kur
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
-      - name: Radyo bağlantısını test et
+      - name: Resim kontrol
         run: |
-          timeout 30 ffmpeg \
+          file image.jpg
+
+      - name: Radyo + resim HLS oluştur
+        run: |
+          timeout 90 ffmpeg \
           -reconnect 1 \
           -reconnect_streamed 1 \
           -reconnect_delay_max 10 \
           -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
-          -t 20 \
-          -vn \
-          -f null -
+          -loop 1 \
+          -framerate 2 \
+          -i "image.jpg" \
+          -map 1:v:0 \
+          -map 0:a:0 \
+          -c:v libx264 \
+          -preset ultrafast \
+          -tune stillimage \
+          -pix_fmt yuv420p \
+          -r 25 \
+          -c:a aac \
+          -b:a 128k \
+          -ar 44100 \
+          -t 60 \
+          -f hls \
+          -hls_time 6 \
+          -hls_list_size 10 \
+          -hls_flags delete_segments \
+          playlist.m3u8
+
+      - name: HLS dosyalarını kontrol et
+        run: |
+          ls -lah
+          ls -lah playlist.m3u8
