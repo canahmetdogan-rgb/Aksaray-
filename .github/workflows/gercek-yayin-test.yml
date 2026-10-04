@@ -1,0 +1,123 @@
+name: Gercek Yayin Testi - Aksaray Sesi
+
+on:
+  workflow_dispatch:
+
+jobs:
+  stream-test:
+    runs-on: ubuntu-24.04
+
+    steps:
+
+      - name: FFmpeg kurulumu
+        run: |
+          echo "======================================"
+          echo "FFmpeg kuruluyor"
+          echo "======================================"
+
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg
+
+          ffmpeg -version | head -n 1
+
+      - name: Kaynak testleri
+        run: |
+          echo "======================================"
+          echo "KAYNAK TESTLERI"
+          echo "======================================"
+
+          echo ""
+          echo "Kamera:"
+          timeout 20 ffmpeg \
+            -hide_banner \
+            -loglevel error \
+            -i "https://kamerayayin.ibb.istanbul/turistikcam/buyukcamlica.stream/chunklist_w607999958.m3u8" \
+            -t 5 \
+            -map 0:v:0 \
+            -f null -
+
+          echo "KAMERA OK"
+
+          echo ""
+          echo "Aksaray Sesi:"
+          timeout 20 ffmpeg \
+            -hide_banner \
+            -loglevel error \
+            -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
+            -t 5 \
+            -map 0:a:0 \
+            -f null -
+
+          echo "AKSARAY SESI OK"
+
+      - name: Gercek yayin - 5 dakika
+        env:
+          SSH101_KEY: ${{ secrets.SSH101_KEY }}
+
+        run: |
+
+          echo "======================================"
+          echo "GERCEK YAYIN BASLIYOR"
+          echo "======================================"
+
+          echo "Kamera + Aksaray Sesi"
+          echo "Hedef: SSH101"
+          echo "Sure: 5 dakika"
+          echo "======================================"
+
+          timeout 300 ffmpeg \
+            -hide_banner \
+            -loglevel info \
+            -analyzeduration 30M \
+            -probesize 50M \
+            -fflags +genpts+discardcorrupt \
+            \
+            -thread_queue_size 4096 \
+            -reconnect 1 \
+            -reconnect_streamed 1 \
+            -reconnect_at_eof 1 \
+            -reconnect_delay_max 5 \
+            -i "https://kamerayayin.ibb.istanbul/turistikcam/buyukcamlica.stream/chunklist_w607999958.m3u8" \
+            \
+            -thread_queue_size 4096 \
+            -reconnect 1 \
+            -reconnect_streamed 1 \
+            -reconnect_at_eof 1 \
+            -reconnect_delay_max 5 \
+            -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
+            \
+            -map 0:v:0 \
+            -map 1:a:0 \
+            \
+            -c:v libx264 \
+            -preset ultrafast \
+            -tune zerolatency \
+            -pix_fmt yuv420p \
+            -s 1280x720 \
+            -r 20 \
+            -g 40 \
+            -keyint_min 40 \
+            -sc_threshold 0 \
+            \
+            -b:v 1000k \
+            -maxrate 1200k \
+            -bufsize 2400k \
+            \
+            -c:a aac \
+            -b:a 128k \
+            -ar 44100 \
+            -ac 2 \
+            \
+            -flvflags no_duration_filesize \
+            \
+            -f flv \
+            -rtmp_live live \
+            "rtmp://ssh101.bozztv.com/ssh101/${SSH101_KEY}"
+
+          RESULT=$?
+
+          echo ""
+          echo "======================================"
+          echo "YAYIN TESTI TAMAMLANDI"
+          echo "FFmpeg sonucu: $RESULT"
+          echo "======================================"
