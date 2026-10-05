@@ -1,0 +1,79 @@
+name: Somine GIF + Aksaray Sesi
+
+on:
+  workflow_dispatch:
+
+jobs:
+  radio-test:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: FFmpeg Kurulumu
+        run: |
+          sudo apt-get update -y
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ffmpeg
+          ffmpeg -version | head -n 1
+
+      - name: Şömine GIF + Aksaray Sesi Testi
+        run: |
+          set +e
+
+          echo "======================================"
+          echo " AKSARAY SESİ - ŞÖMİNE RADYO TESTİ"
+          echo "======================================"
+
+          timeout --signal=TERM --kill-after=15s 300s \
+          ffmpeg \
+            -hide_banner \
+            -loglevel info \
+            \
+            -stream_loop -1 \
+            -re \
+            -i "https://raw.githubusercontent.com/canahmetdogan-rgb/Aksaray-/refs/heads/main/somine.gif" \
+            \
+            -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
+            \
+            -filter_complex "\
+            [0:v]scale=1280:720:force_original_aspect_ratio=decrease,\
+            pad=1280:720:(ow-iw)/2:(oh-ih)/2,\
+            format=yuv420p[v]" \
+            \
+            -map "[v]" \
+            -map 1:a:0 \
+            \
+            -c:v libx264 \
+            -preset veryfast \
+            -profile:v main \
+            -level 3.1 \
+            -pix_fmt yuv420p \
+            -r 25 \
+            -b:v 1500k \
+            -maxrate 1700k \
+            -bufsize 3400k \
+            \
+            -g 50 \
+            -keyint_min 50 \
+            -sc_threshold 0 \
+            \
+            -c:a aac \
+            -profile:a aac_low \
+            -b:a 96k \
+            -ar 44100 \
+            -ac 2 \
+            \
+            -t 300 \
+            \
+            -f null -
+
+          STATUS=$?
+
+          echo "======================================"
+          echo "FFmpeg çıkış kodu: $STATUS"
+          echo "======================================"
+
+          if [ "$STATUS" -eq 0 ] || [ "$STATUS" -eq 124 ]; then
+            echo "Şömine + Aksaray Sesi testi başarılı."
+            exit 0
+          fi
+
+          exit "$STATUS"
