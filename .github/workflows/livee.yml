@@ -1,0 +1,114 @@
+name: Taksim Kamera + Aksaray Sesi
+
+on:
+  workflow_dispatch:
+
+jobs:
+  live:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+
+    steps:
+      - name: Kurulum
+        run: |
+          sudo apt-get update -y
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ffmpeg python3 curl
+          ffmpeg -version | head -n 1
+
+      - name: HLS klasoru
+        run: |
+          mkdir -p hls
+
+      - name: HTTP sunucusunu baslat
+        run: |
+          nohup python3 -m http.server 8080 \
+            --bind 127.0.0.1 \
+            --directory hls \
+            > http.log 2>&1 &
+
+          sleep 2
+
+      - name: Cloudflare Tunnel indir
+        run: |
+          curl -L \
+            -o cloudflared \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+
+          chmod +x cloudflared
+
+      - name: Cloudflare Tunnel baslat
+        run: |
+          nohup ./cloudflared tunnel \
+            --url http://127.0.0.1:8080 \
+            --no-autoupdate \
+            > cloudflare.log 2>&1 &
+
+          echo "Cloudflare baslatildi."
+
+          for i in $(seq 1 30); do
+            sleep 2
+
+            URL=$(grep -oE 'https://[-a-zA-Z0-9]+\.trycloudflare\.com' cloudflare.log | head -n 1 || true)
+
+            if [ -n "$URL" ]; then
+              echo "CLOUDFLARE_URL=$URL" >> "$GITHUB_ENV"
+              echo "HLS_URL=$URL/aksaray.m3u8" >> "$GITHUB_ENV"
+
+              echo "======================================"
+              echo "CLOUDFLARE ADRESI:"
+              echo "$URL"
+              echo ""
+              echo "TELEVIZO HLS ADRESI:"
+              echo "$URL/aksaray.m3u8"
+              echo "======================================"
+
+              break
+            fi
+          done
+
+      - name: FFmpeg yayin baslat
+        run: |
+          set +e
+
+          timeout --signal=TERM --kill-after=15s 335m \
+          ffmpeg \
+            -hide_banner \
+            -loglevel info \
+            -reconnect 1 \
+            -reconnect_streamed 1 \
+            -reconnect_delay_max 5 \
+            -i "https://kamerayayin.ibb.istanbul/turistikcam/taksim.stream/chunklist_w438961806.m3u8" \
+            -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
+            -map 0:v:0 \
+            -map 1:a:0 \
+            -c:v libx264 \
+            -preset veryfast \
+            -profile:v main \
+            -level 3.1 \
+            -pix_fmt yuv420p \
+            -r 25 \
+            -b:v 1500k \
+            -maxrate 1700k \
+            -bufsize 3400k \
+            -g 50 \
+            -keyint_min 50 \
+            -sc_threshold 0 \
+            -c:a aac \
+            -b:a 96k \
+            -ar 44100 \
+            -ac 2 \
+            -f hls \
+            -hls_time 4 \
+            -hls_list_size 6 \
+            -hls_flags delete_segments+append_list \
+            -hls_segment_filename "hls/segment_%05d.ts" \
+            "hls/aksaray.m3u8"
+
+          STATUS=$?
+
+          if [ "$STATUS" -eq 0 ] || [ "$STATUS" -eq 124 ]; then
+            echo "Yayin sonlandi."
+            exit 0
+          fi
+
+          exit "$STATUS"
