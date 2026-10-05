@@ -1,4 +1,4 @@
-name: Taksim Kamera + Aksaray Sesi
+name: Taksim Kamera + Aksaray Sesi HLS
 
 on:
   workflow_dispatch:
@@ -9,41 +9,87 @@ jobs:
     timeout-minutes: 350
 
     steps:
-      - name: Kurulum
+
+      # --------------------------------------------------
+      # 1 - Gerekli programları kontrol et
+      # --------------------------------------------------
+      - name: Sistem kontrolu
+        shell: bash
         run: |
-          sudo apt-get update -y
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ffmpeg python3 curl
+          set -e
+
+          echo "FFmpeg:"
           ffmpeg -version | head -n 1
 
-      - name: HLS klasoru
-        run: |
+          echo "Python:"
+          python3 --version
+
+          echo "Curl:"
+          curl --version | head -n 1
+
           mkdir -p hls
 
-      - name: HTTP sunucusunu baslat
+          echo "Kurulum tamamlandi."
+
+      # --------------------------------------------------
+      # 2 - Yerel HTTP sunucusu
+      # --------------------------------------------------
+      - name: HLS HTTP sunucusunu baslat
+        shell: bash
         run: |
+          set -e
+
           nohup python3 -m http.server 8080 \
             --bind 127.0.0.1 \
             --directory hls \
             > http.log 2>&1 &
 
+          echo $! > http.pid
+
           sleep 2
 
-      - name: Cloudflare Tunnel indir
+          echo "HTTP sunucusu basladi."
+
+      # --------------------------------------------------
+      # 3 - Cloudflare indir
+      # --------------------------------------------------
+      - name: Cloudflare kurulumu
+        shell: bash
         run: |
-          curl -L \
+          set -e
+
+          echo "Cloudflare indiriliyor..."
+
+          curl -L --fail --silent --show-error \
             -o cloudflared \
             https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
 
           chmod +x cloudflared
 
+          ./cloudflared --version
+
+          echo "Cloudflare hazir."
+
+      # --------------------------------------------------
+      # 4 - Cloudflare Quick Tunnel
+      # --------------------------------------------------
       - name: Cloudflare Tunnel baslat
+        shell: bash
         run: |
+          set -e
+
+          rm -f cloudflare.log
+
           nohup ./cloudflared tunnel \
             --url http://127.0.0.1:8080 \
             --no-autoupdate \
             > cloudflare.log 2>&1 &
 
-          echo "Cloudflare baslatildi."
+          echo $! > cloudflare.pid
+
+          echo "Cloudflare Tunnel baslatildi."
+
+          URL=""
 
           for i in $(seq 1 30); do
             sleep 2
@@ -51,26 +97,109 @@ jobs:
             URL=$(grep -oE 'https://[-a-zA-Z0-9]+\.trycloudflare\.com' cloudflare.log | head -n 1 || true)
 
             if [ -n "$URL" ]; then
-              echo "CLOUDFLARE_URL=$URL" >> "$GITHUB_ENV"
-              echo "HLS_URL=$URL/aksaray.m3u8" >> "$GITHUB_ENV"
-
-              echo "======================================"
-              echo "CLOUDFLARE ADRESI:"
-              echo "$URL"
-              echo ""
-              echo "TELEVIZO HLS ADRESI:"
-              echo "$URL/aksaray.m3u8"
-              echo "======================================"
-
               break
             fi
+
+            echo "Tunnel bekleniyor... $i/30"
           done
 
-      - name: FFmpeg yayin baslat
+          if [ -z "$URL" ]; then
+            echo "Cloudflare adresi alinamadi."
+            echo "----- Cloudflare LOG -----"
+            cat cloudflare.log
+            exit 1
+          fi
+
+          HLS_URL="$URL/aksaray.m3u8"
+
+          echo "CLOUDFLARE_URL=$URL" >> "$GITHUB_ENV"
+          echo "HLS_URL=$HLS_URL" >> "$GITHUB_ENV"
+
+          echo ""
+          echo "=========================================="
+          echo "      YAYIN ADRESI HAZIR"
+          echo "=========================================="
+          echo ""
+          echo "Cloudflare:"
+          echo "$URL"
+          echo ""
+          echo "TELEVIZO M3U8:"
+          echo "$HLS_URL"
+          echo ""
+          echo "=========================================="
+
+          {
+            echo "## 📺 Aksaray Sesi + Taksim Kamera"
+            echo ""
+            echo "### Televizo HLS adresi"
+            echo ""
+            echo "\`$HLS_URL\`"
+            echo ""
+            echo "### Cloudflare"
+            echo ""
+            echo "\`$URL\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # --------------------------------------------------
+      # 5 - Kamera ve radyo kontrolü
+      # --------------------------------------------------
+      - name: Kaynaklari kontrol et
+        shell: bash
         run: |
           set +e
 
-          timeout --signal=TERM --kill-after=15s 335m \
+          echo "Kamera kontrol ediliyor..."
+
+          ffprobe \
+            -v error \
+            -select_streams v:0 \
+            -show_entries stream=codec_name,width,height,r_frame_rate \
+            -of default=noprint_wrappers=1 \
+            "https://kamerayayin.ibb.istanbul/turistikcam/taksim.stream/chunklist_w438961806.m3u8"
+
+          CAMERA_STATUS=$?
+
+          echo ""
+          echo "Aksaray Sesi kontrol ediliyor..."
+
+          ffprobe \
+            -v error \
+            -select_streams a:0 \
+            -show_entries stream=codec_name,sample_rate,channels,bit_rate \
+            -of default=noprint_wrappers=1 \
+            "https://sslyayin.netyayin.net/aksarayinsesi/stream/"
+
+          RADIO_STATUS=$?
+
+          echo ""
+
+          if [ "$CAMERA_STATUS" -ne 0 ]; then
+            echo "Kamera kontrolu basarisiz."
+            exit 1
+          fi
+
+          if [ "$RADIO_STATUS" -ne 0 ]; then
+            echo "Radyo kontrolu basarisiz."
+            exit 1
+          fi
+
+          echo "Kamera + radyo kaynaklari OK."
+
+      # --------------------------------------------------
+      # 6 - Canli HLS yayin
+      # --------------------------------------------------
+      - name: Canli yayini baslat
+        shell: bash
+        run: |
+          set +e
+
+          echo ""
+          echo "=========================================="
+          echo "       CANLI YAYIN BASLIYOR"
+          echo "=========================================="
+          echo ""
+
+          timeout --signal=TERM --kill-after=20s 335m \
           ffmpeg \
             -hide_banner \
             -loglevel info \
@@ -106,8 +235,11 @@ jobs:
 
           STATUS=$?
 
+          echo ""
+          echo "FFmpeg cikis kodu: $STATUS"
+
           if [ "$STATUS" -eq 0 ] || [ "$STATUS" -eq 124 ]; then
-            echo "Yayin sonlandi."
+            echo "Yayin normal sekilde sonlandi."
             exit 0
           fi
 
