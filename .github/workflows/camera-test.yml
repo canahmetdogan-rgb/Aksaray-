@@ -1,0 +1,66 @@
+name: Kamera + Aksaray Sesi Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: FFmpeg Kurulumu
+        run: |
+          sudo apt-get update -y
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ffmpeg
+          ffmpeg -version | head -n 1
+
+      - name: Kamera + Radyo Testi
+        run: |
+          set +e
+
+          timeout --signal=TERM --kill-after=10s 120s \
+          ffmpeg \
+            -hide_banner \
+            -loglevel info \
+            \
+            -i "https://fn.rtsp.me/EcI3lKS7tTJafW5RwyiW_w/1790955831/hls/2s4tndDi.m3u8" \
+            \
+            -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
+            \
+            -map 0:v:0 \
+            -map 1:a:0 \
+            \
+            -c:v libx264 \
+            -preset veryfast \
+            -profile:v main \
+            -level 3.1 \
+            -pix_fmt yuv420p \
+            -r 25 \
+            -b:v 1500k \
+            -maxrate 1700k \
+            -bufsize 3400k \
+            \
+            -g 50 \
+            -keyint_min 50 \
+            -sc_threshold 0 \
+            \
+            -c:a aac \
+            -b:a 96k \
+            -ar 44100 \
+            -ac 2 \
+            \
+            -t 120 \
+            -f null -
+
+          STATUS=$?
+
+          echo "======================================"
+          echo "TEST ÇIKIŞ KODU: $STATUS"
+          echo "======================================"
+
+          if [ "$STATUS" -eq 0 ] || [ "$STATUS" -eq 124 ]; then
+            echo "KAMERA + AKSARAY SESİ TESTİ BAŞARILI."
+            exit 0
+          fi
+
+          exit "$STATUS"
