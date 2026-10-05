@@ -1,10 +1,10 @@
-name: Somine GIF + Aksaray Sesi
+name: Somine GIF + Aksaray Sesi HLS
 
 on:
   workflow_dispatch:
 
 jobs:
-  radio-test:
+  hls-test:
     runs-on: ubuntu-24.04
 
     steps:
@@ -14,13 +14,9 @@ jobs:
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ffmpeg
           ffmpeg -version | head -n 1
 
-      - name: Şömine GIF + Aksaray Sesi Testi
+      - name: HLS Yayını Oluştur
         run: |
-          set +e
-
-          echo "======================================"
-          echo " AKSARAY SESİ - ŞÖMİNE RADYO TESTİ"
-          echo "======================================"
+          mkdir -p hls
 
           timeout --signal=TERM --kill-after=15s 300s \
           ffmpeg \
@@ -56,24 +52,38 @@ jobs:
             -sc_threshold 0 \
             \
             -c:a aac \
-            -profile:a aac_low \
             -b:a 96k \
             -ar 44100 \
             -ac 2 \
             \
-            -t 300 \
+            -f hls \
+            -hls_time 4 \
+            -hls_list_size 0 \
+            -hls_segment_filename "hls/segment_%03d.ts" \
             \
-            -f null -
+            hls/aksaray.m3u8
 
           STATUS=$?
 
-          echo "======================================"
-          echo "FFmpeg çıkış kodu: $STATUS"
-          echo "======================================"
-
           if [ "$STATUS" -eq 0 ] || [ "$STATUS" -eq 124 ]; then
-            echo "Şömine + Aksaray Sesi testi başarılı."
+            echo "HLS üretimi tamamlandı."
             exit 0
           fi
 
           exit "$STATUS"
+
+      - name: HLS Dosyalarını Kontrol Et
+        run: |
+          echo "=== HLS PLAYLIST ==="
+          cat hls/aksaray.m3u8
+
+          echo
+          echo "=== DOSYALAR ==="
+          ls -lh hls/
+
+      - name: HLS Dosyalarını Artifact Olarak Kaydet
+        uses: actions/upload-artifact@v4
+        with:
+          name: aksaray-sesi-hls
+          path: hls/
+          retention-days: 1
