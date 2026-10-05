@@ -1,0 +1,234 @@
+name: Anadolu Hisari Kamera + Radyo 4036 HLS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  live:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+
+    steps:
+
+      # 1 - FFmpeg kurulumu
+      - name: FFmpeg kurulumu
+        shell: bash
+        run: |
+          set -e
+
+          echo "FFmpeg kuruluyor..."
+
+          sudo apt-get install -y --no-install-recommends ffmpeg
+
+          echo ""
+          echo "FFmpeg kontrol:"
+          ffmpeg -version | head -n 1
+
+          echo "Python kontrol:"
+          python3 --version
+
+          echo "Curl kontrol:"
+          curl --version | head -n 1
+
+          mkdir -p hls
+
+          echo "Kurulum tamamlandi."
+
+      # 2 - HTTP sunucusu
+      - name: HLS HTTP sunucusunu baslat
+        shell: bash
+        run: |
+          set -e
+
+          nohup python3 -m http.server 8080 \
+            --bind 127.0.0.1 \
+            --directory hls \
+            > http.log 2>&1 &
+
+          echo $! > http.pid
+
+          sleep 2
+
+          echo "HTTP sunucusu basladi."
+
+      # 3 - Cloudflare
+      - name: Cloudflare kurulumu
+        shell: bash
+        run: |
+          set -e
+
+          echo "Cloudflare indiriliyor..."
+
+          curl -L --fail --silent --show-error \
+            -o cloudflared \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
+
+          chmod +x cloudflared
+
+          ./cloudflared --version
+
+          echo "Cloudflare hazir."
+
+      # 4 - Cloudflare Tunnel
+      - name: Cloudflare Tunnel baslat
+        shell: bash
+        run: |
+          set -e
+
+          rm -f cloudflare.log
+
+          nohup ./cloudflared tunnel \
+            --url http://127.0.0.1:8080 \
+            --no-autoupdate \
+            > cloudflare.log 2>&1 &
+
+          echo $! > cloudflare.pid
+
+          URL=""
+
+          for i in $(seq 1 30); do
+            sleep 2
+
+            URL=$(grep -oE \
+              'https://[-a-zA-Z0-9]+\.trycloudflare\.com' \
+              cloudflare.log | head -n 1 || true)
+
+            if [ -n "$URL" ]; then
+              break
+            fi
+
+            echo "Tunnel bekleniyor... $i/30"
+          done
+
+          if [ -z "$URL" ]; then
+            echo "Cloudflare adresi alinamadi."
+            echo "----- CLOUDFLARE LOG -----"
+            cat cloudflare.log
+            exit 1
+          fi
+
+          HLS_URL="$URL/aksaray.m3u8"
+
+          echo "CLOUDFLARE_URL=$URL" >> "$GITHUB_ENV"
+          echo "HLS_URL=$HLS_URL" >> "$GITHUB_ENV"
+
+          echo ""
+          echo "=========================================="
+          echo "       YAYIN ADRESI HAZIR"
+          echo "=========================================="
+          echo ""
+          echo "Cloudflare:"
+          echo "$URL"
+          echo ""
+          echo "TELEVIZO M3U8:"
+          echo "$HLS_URL"
+          echo ""
+          echo "=========================================="
+
+          {
+            echo "## 📺 Anadolu Hisarı + 📻 Radyo 4036"
+            echo ""
+            echo "### Televizo HLS adresi"
+            echo ""
+            echo "\`$HLS_URL\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # 5 - Kaynak kontrolü
+      - name: Kamera ve radyo kontrolu
+        shell: bash
+        run: |
+          set +e
+
+          echo "ANADOLU HISARI KAMERA:"
+
+          ffprobe \
+            -v error \
+            -select_streams v:0 \
+            -show_entries stream=codec_name,width,height,r_frame_rate \
+            -of default=noprint_wrappers=1 \
+            "https://kamerayayin.ibb.istanbul/turistikcam/anadoluhisari.stream/playlist.m3u8"
+
+          CAMERA_STATUS=$?
+
+          echo ""
+          echo "RADYO YAYINDAKILER 4036:"
+
+          ffprobe \
+            -v error \
+            -select_streams a:0 \
+            -show_entries stream=codec_name,sample_rate,channels,bit_rate \
+            -of default=noprint_wrappers=1 \
+            "https://radyo.yayindakiler.com:4036/stream?/;stream.mp3"
+
+          RADIO_STATUS=$?
+
+          echo ""
+
+          if [ "$CAMERA_STATUS" -ne 0 ]; then
+            echo "Kamera kontrolu basarisiz."
+            exit 1
+          fi
+
+          if [ "$RADIO_STATUS" -ne 0 ]; then
+            echo "Radyo kontrolu basarisiz."
+            exit 1
+          fi
+
+          echo "KAMERA + RADYO OK."
+
+      # 6 - Canli yayin
+      - name: Canli yayini baslat
+        shell: bash
+        run: |
+          set +e
+
+          echo ""
+          echo "=========================================="
+          echo "       CANLI YAYIN BASLIYOR"
+          echo "=========================================="
+          echo ""
+
+          timeout --signal=TERM --kill-after=20s 335m \
+          ffmpeg \
+            -hide_banner \
+            -loglevel info \
+            -reconnect 1 \
+            -reconnect_streamed 1 \
+            -reconnect_delay_max 5 \
+            -i "https://kamerayayin.ibb.istanbul/turistikcam/anadoluhisari.stream/playlist.m3u8" \
+            -i "https://radyo.yayindakiler.com:4036/stream?/;stream.mp3" \
+            -map 0:v:0 \
+            -map 1:a:0 \
+            -c:v libx264 \
+            -preset veryfast \
+            -profile:v main \
+            -level 3.1 \
+            -pix_fmt yuv420p \
+            -r 25 \
+            -b:v 1500k \
+            -maxrate 1700k \
+            -bufsize 3400k \
+            -g 50 \
+            -keyint_min 50 \
+            -sc_threshold 0 \
+            -c:a aac \
+            -b:a 96k \
+            -ar 44100 \
+            -ac 2 \
+            -f hls \
+            -hls_time 4 \
+            -hls_list_size 6 \
+            -hls_flags delete_segments+append_list \
+            -hls_segment_filename "hls/segment_%05d.ts" \
+            "hls/aksaray.m3u8"
+
+          STATUS=$?
+
+          echo ""
+          echo "FFmpeg cikis kodu: $STATUS"
+
+          if [ "$STATUS" -eq 0 ] || [ "$STATUS" -eq 124 ]; then
+            exit 0
+          fi
+
+          exit "$STATUS"
