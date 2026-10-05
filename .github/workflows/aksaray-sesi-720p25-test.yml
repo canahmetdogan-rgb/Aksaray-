@@ -1,0 +1,104 @@
+name: Aksaray Sesi - 720p 25FPS Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  stream:
+    runs-on: ubuntu-24.04
+
+    steps:
+
+      - name: FFmpeg kurulumu
+        run: |
+          echo "FFmpeg kuruluyor..."
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg
+          echo "FFmpeg:"
+          ffmpeg -version | head -n 1
+
+      - name: Kamera kontrolu
+        run: |
+          timeout 30 ffprobe \
+            -hide_banner \
+            -loglevel warning \
+            -i "https://kamerayayin.ibb.istanbul/turistikcam/buyukcamlica.stream/chunklist_w607999958.m3u8" \
+            -show_streams \
+            -select_streams v:0
+
+      - name: Aksaray Sesi kontrolu
+        run: |
+          timeout 30 ffprobe \
+            -hide_banner \
+            -loglevel warning \
+            -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
+            -show_streams \
+            -select_streams a:0
+
+      - name: 5 Dakika Gercek Yayin
+        env:
+          SSH101_KEY: ${{ secrets.SSH101_KEY }}
+
+        run: |
+          timeout 300 ffmpeg \
+            -hide_banner \
+            -loglevel info \
+            -analyzeduration 20M \
+            -probesize 30M \
+            -fflags +genpts+discardcorrupt \
+            \
+            -thread_queue_size 4096 \
+            -reconnect 1 \
+            -reconnect_streamed 1 \
+            -reconnect_at_eof 1 \
+            -reconnect_delay_max 5 \
+            -i "https://kamerayayin.ibb.istanbul/turistikcam/buyukcamlica.stream/chunklist_w607999958.m3u8" \
+            \
+            -thread_queue_size 4096 \
+            -reconnect 1 \
+            -reconnect_streamed 1 \
+            -reconnect_at_eof 1 \
+            -reconnect_delay_max 5 \
+            -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
+            \
+            -map 0:v:0 \
+            -map 1:a:0 \
+            \
+            -c:v libx264 \
+            -preset ultrafast \
+            -tune zerolatency \
+            -pix_fmt yuv420p \
+            -s 1280x720 \
+            -r 25 \
+            -g 50 \
+            -keyint_min 50 \
+            -sc_threshold 0 \
+            \
+            -b:v 1500k \
+            -maxrate 1600k \
+            -bufsize 3200k \
+            \
+            -c:a aac \
+            -profile:a aac_low \
+            -b:a 96k \
+            -ar 44100 \
+            -ac 2 \
+            \
+            -flvflags no_duration_filesize \
+            -f flv \
+            -rtmp_live live \
+            "rtmp://ssh101.bozztv.com/ssh101/${SSH101_KEY}"
+
+      - name: Test tamamlandi
+        if: always()
+        run: |
+          echo "================================"
+          echo "AKSARAY SESI TESTI TAMAMLANDI"
+          echo "Video : H.264"
+          echo "Boyut : 1280x720"
+          echo "FPS   : 25"
+          echo "Video : 1500 kbps"
+          echo "Ses   : AAC-LC 96 kbps"
+          echo "Ses   : 44.1 kHz Stereo"
+          echo "Sure  : 5 dakika"
+          echo "================================"
