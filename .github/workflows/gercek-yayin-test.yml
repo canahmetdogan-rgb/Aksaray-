@@ -8,127 +8,63 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-
-      - name: FFmpeg kurulumu
-        shell: bash
+      - name: FFmpeg Kurulumu
         run: |
-          set -e
-
-          echo "FFmpeg kuruluyor..."
-
-          export DEBIAN_FRONTEND=noninteractive
-
-          sudo apt-get -o Acquire::Retries=2 \
-                       -o Acquire::http::Timeout=20 \
-                       -o Acquire::https::Timeout=20 \
-                       update -y
-
-          sudo apt-get -o Acquire::Retries=2 \
-                       -o Acquire::http::Timeout=20 \
-                       -o Acquire::https::Timeout=20 \
-                       install -y ffmpeg
-
-          echo "======================================"
-          echo "FFmpeg HAZIR"
-          echo "======================================"
-
+          sudo apt-get update -y
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ffmpeg
+          echo "FFmpeg sürümü:"
           ffmpeg -version | head -n 1
 
-
-      - name: SSH101 DNS ve port
-        run: |
-          echo "======================================"
-          echo "SSH101 TEST"
-          echo "======================================"
-
-          getent hosts ssh101.bozztv.com
-
-          timeout 10 bash -c \
-          'cat < /dev/null > /dev/tcp/ssh101.bozztv.com/1935'
-
-          echo "SSH101 TCP 1935 OK"
-
-
-      - name: Kamera ve Aksaray Sesi
-        run: |
-          echo "======================================"
-          echo "KAYNAK TESTLERI"
-          echo "======================================"
-
-          echo "Kamera test..."
-
-          timeout 30 ffmpeg \
-            -hide_banner \
-            -loglevel error \
-            -i "https://kamerayayin.ibb.istanbul/turistikcam/buyukcamlica.stream/chunklist_w607999958.m3u8" \
-            -t 5 \
-            -map 0:v:0 \
-            -f null -
-
-          echo "KAMERA OK"
-
-          echo "Aksaray Sesi test..."
-
-          timeout 30 ffmpeg \
-            -hide_banner \
-            -loglevel error \
-            -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
-            -t 5 \
-            -map 0:a:0 \
-            -f null -
-
-          echo "AKSARAY SESI OK"
-
-
-      - name: Gercek SSH101 yayini
+      - name: SSH101 10 Dakika Gerçek Yayın Testi
         env:
           SSH101_KEY: ${{ secrets.SSH101_KEY }}
-
         run: |
+          set +e
 
-          echo "======================================"
-          echo "AKSARAY SESI GERCEK YAYIN"
-          echo "======================================"
+          echo "=============================================="
+          echo " AKSARAY SESİ + BÜYÜK ÇAMLICA"
+          echo " SSH101 GERÇEK YAYIN TESTİ"
+          echo "=============================================="
+          echo "Video : 1280x720 / 25 FPS / H.264 Main"
+          echo "Video : 1500 kbps hedef"
+          echo "Ses   : AAC / 44.1 kHz / 96 kbps"
+          echo "Süre  : 10 dakika"
+          echo "=============================================="
 
-          timeout 300 ffmpeg \
+          timeout --signal=TERM --kill-after=15s 600s \
+          ffmpeg \
             -hide_banner \
             -loglevel info \
-            -analyzeduration 30M \
-            -probesize 50M \
-            -fflags +genpts+discardcorrupt \
             \
-            -thread_queue_size 4096 \
             -reconnect 1 \
             -reconnect_streamed 1 \
-            -reconnect_at_eof 1 \
             -reconnect_delay_max 5 \
+            \
             -i "https://kamerayayin.ibb.istanbul/turistikcam/buyukcamlica.stream/chunklist_w607999958.m3u8" \
             \
-            -thread_queue_size 4096 \
-            -reconnect 1 \
-            -reconnect_streamed 1 \
-            -reconnect_at_eof 1 \
-            -reconnect_delay_max 5 \
             -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
             \
             -map 0:v:0 \
             -map 1:a:0 \
             \
             -c:v libx264 \
-            -preset ultrafast \
-            -tune zerolatency \
+            -preset veryfast \
+            -profile:v main \
+            -level 3.1 \
             -pix_fmt yuv420p \
             -s 1280x720 \
-            -r 20 \
-            -g 40 \
-            -keyint_min 40 \
+            -r 25 \
+            \
+            -b:v 1500k \
+            -maxrate 1700k \
+            -bufsize 3400k \
+            \
+            -g 50 \
+            -keyint_min 50 \
             -sc_threshold 0 \
-            -b:v 1000k \
-            -maxrate 1200k \
-            -bufsize 2400k \
             \
             -c:a aac \
-            -b:a 128k \
+            -b:a 96k \
             -ar 44100 \
             -ac 2 \
             \
@@ -136,3 +72,22 @@ jobs:
             -f flv \
             -rtmp_live live \
             "rtmp://ssh101.bozztv.com/ssh101/${SSH101_KEY}"
+
+          STATUS=$?
+
+          echo "=============================================="
+          echo " FFmpeg çıkış kodu: $STATUS"
+          echo "=============================================="
+
+          if [ "$STATUS" -eq 124 ]; then
+            echo "10 dakikalık yayın testi başarıyla tamamlandı."
+            exit 0
+          fi
+
+          if [ "$STATUS" -eq 0 ]; then
+            echo "FFmpeg normal şekilde tamamlandı."
+            exit 0
+          fi
+
+          echo "FFmpeg beklenmeyen bir hata ile durdu."
+          exit "$STATUS"
