@@ -1,0 +1,140 @@
+name: SSH101 Gercek Yayin Kontrol
+
+on:
+  workflow_dispatch:
+
+jobs:
+  stream:
+    runs-on: ubuntu-24.04
+
+    steps:
+
+      - name: FFmpeg kurulumu
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg
+          ffmpeg -version | head -n 1
+
+      - name: SSH101 RTMP port kontrolu
+        run: |
+          echo "SSH101 RTMP kontrolu..."
+
+          timeout 15 bash -c \
+          'cat < /dev/null > /dev/tcp/ssh101.bozztv.com/1935'
+
+          echo "RTMP 1935 PORT ACIK"
+
+      - name: Kamera kontrolu
+        run: |
+          timeout 30 ffprobe \
+            -hide_banner \
+            -loglevel info \
+            -i "https://kamerayayin.ibb.istanbul/turistikcam/buyukcamlica.stream/chunklist_w607999958.m3u8" \
+            -select_streams v:0 \
+            -show_entries stream=codec_name,width,height,r_frame_rate \
+            -of default=noprint_wrappers=1
+
+      - name: Aksaray Sesi kontrolu
+        run: |
+          timeout 30 ffprobe \
+            -hide_banner \
+            -loglevel info \
+            -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
+            -select_streams a:0 \
+            -show_entries stream=codec_name,sample_rate,channels,bit_rate \
+            -of default=noprint_wrappers=1
+
+      - name: SSH101 Gercek Yayin
+        env:
+          SSH101_KEY: ${{ secrets.SSH101_KEY }}
+
+        run: |
+          echo "========================================"
+          echo "SSH101 GERCEK YAYIN BASLIYOR"
+          echo "========================================"
+
+          timeout 600 ffmpeg \
+            -hide_banner \
+            -loglevel info \
+            -analyzeduration 20M \
+            -probesize 30M \
+            -fflags +genpts+discardcorrupt \
+            \
+            -thread_queue_size 4096 \
+            -reconnect 1 \
+            -reconnect_streamed 1 \
+            -reconnect_at_eof 1 \
+            -reconnect_delay_max 5 \
+            -i "https://kamerayayin.ibb.istanbul/turistikcam/buyukcamlica.stream/chunklist_w607999958.m3u8" \
+            \
+            -thread_queue_size 4096 \
+            -reconnect 1 \
+            -reconnect_streamed 1 \
+            -reconnect_at_eof 1 \
+            -reconnect_delay_max 5 \
+            -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
+            \
+            -map 0:v:0 \
+            -map 1:a:0 \
+            \
+            -c:v libx264 \
+            -preset ultrafast \
+            -tune zerolatency \
+            -pix_fmt yuv420p \
+            -s 1280x720 \
+            -r 25 \
+            -g 50 \
+            -keyint_min 50 \
+            -sc_threshold 0 \
+            \
+            -b:v 1500k \
+            -maxrate 1600k \
+            -bufsize 3200k \
+            \
+            -c:a aac \
+            -profile:a aac_low \
+            -b:a 96k \
+            -ar 44100 \
+            -ac 2 \
+            \
+            -flvflags no_duration_filesize \
+            -f flv \
+            -rtmp_live live \
+            "rtmp://ssh101.bozztv.com/ssh101/${SSH101_KEY}"
+
+          EXIT_CODE=$?
+
+          echo "========================================"
+          echo "FFMPEG EXIT CODE: $EXIT_CODE"
+          echo "========================================"
+
+          if [ "$EXIT_CODE" = "124" ]; then
+            echo "10 dakikalik test suresi doldu."
+            echo "Bu beklenen bir durumdur."
+            exit 0
+          fi
+
+          if [ "$EXIT_CODE" = "0" ]; then
+            echo "FFmpeg normal olarak tamamlandi."
+            exit 0
+          fi
+
+          echo "FFmpeg hata ile sonlandi."
+          exit "$EXIT_CODE"
+
+      - name: Sonuc
+        if: always()
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "       AKSARAY SESI SSH101 TESTI"
+          echo "=========================================="
+          echo "Video : H.264"
+          echo "Boyut : 1280x720"
+          echo "FPS   : 25"
+          echo "Video : 1500 kbps"
+          echo "Ses   : AAC-LC"
+          echo "Ses   : 96 kbps"
+          echo "Ses   : 44100 Hz Stereo"
+          echo "Sure  : 10 dakika"
+          echo "=========================================="
