@@ -10,30 +10,31 @@ jobs:
 
     steps:
 
-      # --------------------------------------------------
-      # 1 - Gerekli programları kontrol et
-      # --------------------------------------------------
-      - name: Sistem kontrolu
+      # 1 - FFmpeg kurulumu
+      - name: FFmpeg kurulumu
         shell: bash
         run: |
           set -e
 
-          echo "FFmpeg:"
+          echo "FFmpeg kuruluyor..."
+
+          sudo apt-get install -y --no-install-recommends ffmpeg
+
+          echo ""
+          echo "FFmpeg kontrol:"
           ffmpeg -version | head -n 1
 
-          echo "Python:"
+          echo "Python kontrol:"
           python3 --version
 
-          echo "Curl:"
+          echo "Curl kontrol:"
           curl --version | head -n 1
 
           mkdir -p hls
 
           echo "Kurulum tamamlandi."
 
-      # --------------------------------------------------
-      # 2 - Yerel HTTP sunucusu
-      # --------------------------------------------------
+      # 2 - HTTP sunucusu
       - name: HLS HTTP sunucusunu baslat
         shell: bash
         run: |
@@ -50,9 +51,7 @@ jobs:
 
           echo "HTTP sunucusu basladi."
 
-      # --------------------------------------------------
-      # 3 - Cloudflare indir
-      # --------------------------------------------------
+      # 3 - Cloudflare
       - name: Cloudflare kurulumu
         shell: bash
         run: |
@@ -70,9 +69,7 @@ jobs:
 
           echo "Cloudflare hazir."
 
-      # --------------------------------------------------
-      # 4 - Cloudflare Quick Tunnel
-      # --------------------------------------------------
+      # 4 - Cloudflare Tunnel
       - name: Cloudflare Tunnel baslat
         shell: bash
         run: |
@@ -86,8 +83,6 @@ jobs:
             > cloudflare.log 2>&1 &
 
           echo $! > cloudflare.pid
-
-          echo "Cloudflare Tunnel baslatildi."
 
           URL=""
 
@@ -105,7 +100,7 @@ jobs:
 
           if [ -z "$URL" ]; then
             echo "Cloudflare adresi alinamadi."
-            echo "----- Cloudflare LOG -----"
+            echo "----- CLOUDFLARE LOG -----"
             cat cloudflare.log
             exit 1
           fi
@@ -117,7 +112,7 @@ jobs:
 
           echo ""
           echo "=========================================="
-          echo "      YAYIN ADRESI HAZIR"
+          echo "       YAYIN ADRESI HAZIR"
           echo "=========================================="
           echo ""
           echo "Cloudflare:"
@@ -134,22 +129,15 @@ jobs:
             echo "### Televizo HLS adresi"
             echo ""
             echo "\`$HLS_URL\`"
-            echo ""
-            echo "### Cloudflare"
-            echo ""
-            echo "\`$URL\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # --------------------------------------------------
-      # 5 - Kamera ve radyo kontrolü
-      # --------------------------------------------------
-      - name: Kaynaklari kontrol et
+      # 5 - Kaynak kontrolü
+      - name: Kamera ve radyo kontrolu
         shell: bash
         run: |
           set +e
 
-          echo "Kamera kontrol ediliyor..."
-
+          echo "KAMERA:"
           ffprobe \
             -v error \
             -select_streams v:0 \
@@ -160,7 +148,7 @@ jobs:
           CAMERA_STATUS=$?
 
           echo ""
-          echo "Aksaray Sesi kontrol ediliyor..."
+          echo "AKSARAY SESI:"
 
           ffprobe \
             -v error \
@@ -183,11 +171,9 @@ jobs:
             exit 1
           fi
 
-          echo "Kamera + radyo kaynaklari OK."
+          echo "KAMERA + RADYO OK."
 
-      # --------------------------------------------------
-      # 6 - Canli HLS yayin
-      # --------------------------------------------------
+      # 6 - Canli yayin
       - name: Canli yayini baslat
         shell: bash
         run: |
@@ -239,7 +225,6 @@ jobs:
           echo "FFmpeg cikis kodu: $STATUS"
 
           if [ "$STATUS" -eq 0 ] || [ "$STATUS" -eq 124 ]; then
-            echo "Yayin normal sekilde sonlandi."
             exit 0
           fi
 
