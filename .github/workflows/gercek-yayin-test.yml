@@ -12,23 +12,17 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ffmpeg
-          echo "FFmpeg sürümü:"
           ffmpeg -version | head -n 1
 
-      - name: SSH101 10 Dakika Gerçek Yayın Testi
+      - name: 10 Dakika Görüntülü Radyo Testi
         env:
           SSH101_KEY: ${{ secrets.SSH101_KEY }}
         run: |
           set +e
 
           echo "=============================================="
-          echo " AKSARAY SESİ + BÜYÜK ÇAMLICA"
-          echo " SSH101 GERÇEK YAYIN TESTİ"
-          echo "=============================================="
-          echo "Video : 1280x720 / 25 FPS / H.264 Main"
-          echo "Video : 1500 kbps hedef"
-          echo "Ses   : AAC / 44.1 kHz / 96 kbps"
-          echo "Süre  : 10 dakika"
+          echo " AKSARAY SESİ - GÖRÜNTÜLÜ RADYO"
+          echo " BÜYÜK ÇAMLICA + AKSARAY SESİ"
           echo "=============================================="
 
           timeout --signal=TERM --kill-after=15s 600s \
@@ -44,7 +38,16 @@ jobs:
             \
             -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
             \
-            -map 0:v:0 \
+            -filter_complex "\
+            [0:v]scale=1280:720:force_original_aspect_ratio=decrease,\
+            pad=1280:720:(ow-iw)/2:(oh-ih)/2,\
+            drawbox=x=25:y=570:w=430:h=115:color=black@0.70:t=fill,\
+            drawtext=text='AKSARAY SESI':x=50:y=595:fontsize=34:fontcolor=white,\
+            drawtext=text='CANLI RADYO':x=50:y=638:fontsize=25:fontcolor=white,\
+            drawtext=text='44.1 kHz  |  AAC':x=50:y=675:fontsize=20:fontcolor=white\
+            [v]" \
+            \
+            -map "[v]" \
             -map 1:a:0 \
             \
             -c:v libx264 \
@@ -52,7 +55,6 @@ jobs:
             -profile:v main \
             -level 3.1 \
             -pix_fmt yuv420p \
-            -s 1280x720 \
             -r 25 \
             \
             -b:v 1500k \
@@ -80,14 +82,12 @@ jobs:
           echo "=============================================="
 
           if [ "$STATUS" -eq 124 ]; then
-            echo "10 dakikalık yayın testi başarıyla tamamlandı."
+            echo "10 dakikalık görüntülü radyo testi tamamlandı."
             exit 0
           fi
 
           if [ "$STATUS" -eq 0 ]; then
-            echo "FFmpeg normal şekilde tamamlandı."
             exit 0
           fi
 
-          echo "FFmpeg beklenmeyen bir hata ile durdu."
           exit "$STATUS"
