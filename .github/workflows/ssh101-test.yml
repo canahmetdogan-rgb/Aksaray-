@@ -1,74 +1,37 @@
-name: SSH101 Saf RTMP Test
+name: Ornek Yayin Analizi
 
 on:
   workflow_dispatch:
 
 jobs:
-  test:
+  analyze:
     runs-on: ubuntu-24.04
 
     steps:
 
       - name: FFmpeg kurulumu
         run: |
-          echo "=== FFMPEG KURULUM ==="
-
           sudo apt-get update -y
           sudo apt-get install -y ffmpeg
 
-          echo "FFmpeg:"
           ffmpeg -version | head -n 1
 
-      - name: DNS testi
+      - name: TS yayin analizi
         run: |
-          echo "=== DNS ==="
-          getent hosts ssh101.bozztv.com
+          echo "======================================"
+          echo "ORNEK YAYIN ANALIZI"
+          echo "======================================"
 
-      - name: Port 1935 testi
-        run: |
-          echo "=== TCP 1935 ==="
-
-          timeout 10 bash -c \
-          'cat < /dev/null > /dev/tcp/ssh101.bozztv.com/1935'
-
-          echo "TCP 1935 BASARILI"
-
-      - name: RTMP handshake testi
-        env:
-          SSH101_KEY: ${{ secrets.SSH101_KEY }}
-
-        run: |
-          echo "=== RTMP SERVER TEST ==="
-
-          set +e
-
-          timeout 20 ffmpeg \
+          timeout 30 ffmpeg \
             -hide_banner \
-            -loglevel debug \
-            -f lavfi \
-            -i "testsrc=size=320x240:rate=5" \
+            -loglevel info \
+            -analyzeduration 10M \
+            -probesize 20M \
+            -i "http://4.438069.xyz:2086/live/@SeZR.12.11.22/2022xSezER.12.11@/396682.ts" \
             -t 10 \
-            -c:v libx264 \
-            -preset ultrafast \
-            -pix_fmt yuv420p \
-            -r 5 \
-            -g 10 \
-            -f flv \
-            -rtmp_live live \
-            "rtmp://ssh101.bozztv.com/ssh101/${SSH101_KEY}" \
-            2>&1 | tee rtmp.log
+            -map 0 \
+            -f null -
 
-          RESULT=${PIPESTATUS[0]}
-
-          echo ""
-          echo "=== RTMP SONUCU ==="
-          echo "FFmpeg exit code: $RESULT"
-
-          echo ""
-          echo "=== ÖNEMLİ RTMP SATIRLARI ==="
-
-          grep -Ei \
-          "connect|handshake|publish|NetStream|server|error|failed|refused|closed|broken|reset|rtmp" \
-          rtmp.log || true
-
-          exit 0
+          echo "======================================"
+          echo "ANALIZ TAMAMLANDI"
+          echo "======================================"
