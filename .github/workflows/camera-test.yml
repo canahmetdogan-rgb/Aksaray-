@@ -1,4 +1,4 @@
-name: Kamera + Aksaray Sesi 403 Test
+name: Taksim Kamera + Aksaray Sesi Test
 
 on:
   workflow_dispatch:
@@ -15,25 +15,24 @@ jobs:
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ffmpeg
           ffmpeg -version | head -n 1
 
-      - name: Kamera Akışını Kontrol Et
+      - name: Taksim Kamera Kontrol
         run: |
           set -e
 
           echo "======================================"
-          echo " KAMERA TESTİ"
+          echo " TAKSİM KAMERA TESTİ"
           echo "======================================"
 
           ffprobe \
             -hide_banner \
             -loglevel info \
-            -user_agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36" \
-            -headers "Referer: https://rtsp.me/\r\nOrigin: https://rtsp.me\r\n" \
-            -i "https://fn.rtsp.me/EcI3lKS7tTJafW5RwyiW_w/1790955831/hls/2s4tndDi.m3u8" \
+            -user_agent "Mozilla/5.0" \
+            -i "https://kamerayayin.ibb.istanbul/turistikcam/taksim.stream/chunklist_w438961806.m3u8" \
             -select_streams v:0 \
             -show_entries stream=codec_name,width,height,r_frame_rate \
             -of default
 
-      - name: Aksaray Sesi Kontrol Et
+      - name: Aksaray Sesi Kontrol
         run: |
           set -e
 
@@ -49,12 +48,12 @@ jobs:
             -show_entries stream=codec_name,sample_rate,channels,bit_rate \
             -of default
 
-      - name: Kamera + Aksaray Sesi Birleştirme
+      - name: Taksim Kamera + Aksaray Sesi
         run: |
           set +e
 
           echo "======================================"
-          echo " KAMERA + AKSARAY SESİ"
+          echo " TAKSİM KAMERA + AKSARAY SESİ"
           echo " 120 SANİYE TEST"
           echo "======================================"
 
@@ -63,10 +62,9 @@ jobs:
             -hide_banner \
             -loglevel info \
             \
-            -user_agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36" \
-            -headers "Referer: https://rtsp.me/\r\nOrigin: https://rtsp.me\r\n" \
+            -user_agent "Mozilla/5.0" \
             \
-            -i "https://fn.rtsp.me/EcI3lKS7tTJafW5RwyiW_w/1790955831/hls/2s4tndDi.m3u8" \
+            -i "https://kamerayayin.ibb.istanbul/turistikcam/taksim.stream/chunklist_w438961806.m3u8" \
             \
             -i "https://sslyayin.netyayin.net/aksarayinsesi/stream/" \
             \
@@ -103,11 +101,12 @@ jobs:
           echo "======================================"
 
           if [ "$STATUS" -eq 0 ] || [ "$STATUS" -eq 124 ]; then
+            echo
             echo "======================================"
-            echo " KAMERA + AKSARAY SESİ BAŞARILI"
+            echo " TAKSİM KAMERA + AKSARAY SESİ BAŞARILI"
             echo "======================================"
             exit 0
           fi
 
-          echo "Kamera sunucusu erişimi reddetti veya FFmpeg hata verdi."
+          echo "Kamera veya radyo akışında hata oluştu."
           exit "$STATUS"
